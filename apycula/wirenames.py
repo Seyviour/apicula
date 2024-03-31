@@ -68,7 +68,17 @@ clknames.update({
     97: 'TRPLL1CLK0', 98: 'TRPLL1CLK1', 99: 'TRPLL1CLK2', 100: 'TRPLL1CLK3',
     101: 'BRPLL0CLK0', 102: 'BRPLL0CLK1', 103: 'BRPLL0CLK2', 104: 'BRPLL0CLK3',
 })
+
 clknames.update({n: f"UNK{n}" for n in range(105, 121)})
+
+# These are CLKDIV output pins
+clknames.update({
+    106: 'THCLK0_CLKDIV_CLKOUT', 108:'THCLK1_CLKDIV_CLKOUT',
+    118: 'RHCLK0_CLKDIV_CLKOUT', 120:'RHCLK1_CLKDIV_CLKOUT',
+    110: 'BHCLK0_CLKDIV_CLKOUT', 112:'BHCLK1_CLKDIV_CLKOUT',
+    116: 'LHCLK0_CLKDIV_CLKOUT', 114:'LHCLK1_CLKDIV_CLKOUT',
+})
+
 # These are the external clock pins, one on each side
 clknames.update({
     121: 'PCLKT0', 122: 'PCLKT1', 123: 'PCLKB0', 124: 'PCLKB1',
