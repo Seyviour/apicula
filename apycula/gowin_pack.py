@@ -1,3 +1,4 @@
+import copy
 import sys
 import os
 import re
@@ -174,7 +175,7 @@ _bsram_cell_types = {'DP', 'SDP', 'SP', 'ROM'}
 def get_bels(data):
     later = []
     if is_himbaechel:
-        belre = re.compile(r"X(\d+)Y(\d+)/(?:GSR|LUT|DFF|IOB|MUX|ALU|ODDR|OSC[ZFHWO]?|BUF[GS]|RAM16SDP4|RAM16SDP2|RAM16SDP1|PLL|IOLOGIC|BSRAM)(\w*)")
+        belre = re.compile(r"X(\d+)Y(\d+)/(?:GSR|LUT|DFF|IOB|MUX|ALU|ODDR|OSC[ZFHWO]?|BUF[GS]|RAM16SDP4|RAM16SDP2|RAM16SDP1|PLL|CLKDIV|IOLOGIC|BSRAM)(\w*)")
     else:
         belre = re.compile(r"R(\d+)C(\d+)_(?:GSR|SLICE|IOB|MUX2_LUT5|MUX2_LUT6|MUX2_LUT7|MUX2_LUT8|ODDR|OSC[ZFHWO]?|BUFS|RAMW|rPLL|PLLVR|IOLOGIC)(\w*)")
 
@@ -227,6 +228,9 @@ def get_pips(data):
         for pip in pips:
             res = pipre.fullmatch(pip) # ignore alias
             if res:
+                if ("_HCLK_DUMMY") in pip:
+                    print(pip)
+                    continue
                 row, col, src, dest = res.groups()
                 if is_himbaechel:
                     # XD - input of the DFF
@@ -242,6 +246,8 @@ def get_pips(data):
                     yield int(col) + 1, int(row) + 1, dest, src
                 else:
                     yield int(row), int(col), src, dest
+            elif "DUMMY" in pip:
+                print("DUMMY PIP:",pip)
             elif pip and "DUMMY" not in pip:
                 print("Invalid pip:", pip)
 
@@ -362,6 +368,37 @@ def add_pll_default_attrs(attrs):
             continue
         pll_inattrs[k] = v
     return pll_inattrs
+
+_clkdiv_default_params = {
+    "DIV_MODE": "2",
+    "GSREN": "false"
+}
+def set_clkdiv_attrs(db, params, idx):
+    idx = int(idx)
+    params = params or dict(_clkdiv_default_params)
+    attrs = {}
+    cdiv_idx = 0
+    if idx in [0,1]:
+        cdiv_idx = 0
+    elif idx in [2,3]:
+        cdiv_idx = 1
+    else:
+        raise Exception
+    attrs[f"HCLKDIV{cdiv_idx}_DIV"] = params["DIV_MODE"]
+
+    if idx == 1:
+        attrs[f"HCLKDCS0_SEL"] = "HCLKBK10"
+    elif idx == 3:
+        attrs[f"HCLKDCS1_SEL"] = "HCLKBK11"
+
+    fin_attrs = set()
+    for attr, val in attrs.items():
+        print(attrs)
+        if isinstance(val, str):
+            val = attrids.hclk_attrvals[val]
+        add_attr_val(db, 'HCLK', fin_attrs, attrids.hclk_attrids[attr], val)
+    return fin_attrs
+
 
 
 # typ - PLL type (RPLL, etc)
@@ -872,6 +909,7 @@ def place(db, tilemap, bels, cst, args):
                 parms['INPUT_USED'] =  "0"
                 parms['ENABLE_USED'] = "0"
             typ = 'IOB'
+            print(parms)
 
         if is_himbaechel and typ in {'IOLOGIC', 'IOLOGICI', 'IOLOGICO', 'IOLOGIC_DUMMY', 'ODDR', 'ODDRC', 'OSER4',
                                      'OSER8', 'OSER10', 'OVIDEO', 'IDDR', 'IDDRC', 'IDES4', 'IDES8', 'IDES10', 'IVIDEO'}:
@@ -886,9 +924,9 @@ def place(db, tilemap, bels, cst, args):
                 # they have the same number, this is possible because the clock
                 # spines never go along the edges of the chip where the HCLK
                 # wires are.
-                recode_spines = {'UNKNOWN': 'UNKNOWN', 'HCLK_OUT0': 'SPINE10',
-                                 'HCLK_OUT1': 'SPINE11', 'HCLK_OUT2': 'SPINE12',
-                                 'HCLK_OUT3': 'SPINE13'}
+                recode_spines = {'UNKNOWN': 'UNKNOWN', 'HCLK_FCLK0': 'SPINE10',
+                                 'HCLK_FCLK1': 'SPINE11', 'HCLK_FCLK2': 'SPINE12',
+                                 'HCLK_FCLK3': 'SPINE13'}
                 if attrs['IOLOGIC_FCLK'] in recode_spines:
                     attrs['IOLOGIC_FCLK'] = recode_spines[attrs['IOLOGIC_FCLK']]
             else:
@@ -960,8 +998,8 @@ def place(db, tilemap, bels, cst, args):
                 if not iob.is_diff_p:
                     raise ValueError(f"Cannot place {cellname} at {bel_name} - not a P pin")
                 mode = parms['DIFF_TYPE']
-                if iob.is_true_lvds and mode[0] != 'T':
-                    raise ValueError(f"Cannot place {cellname} at {bel_name} - it is a true lvds pin")
+                # if iob.is_true_lvds and mode[0] != 'T':
+                #     raise ValueError(f"Cannot place {cellname} at {bel_name} - it is a true lvds pin")
                 if not iob.is_true_lvds and mode[0] == 'T':
                     raise ValueError(f"Cannot place {cellname} at {bel_name} - it is an emulated lvds pin")
             else:
@@ -1031,6 +1069,23 @@ def place(db, tilemap, bels, cst, args):
             bits = get_shortval_fuses(db, tiledata.ttyp, iologic_attrs, table_type)
             for r, c in bits:
                 tile[r][c] = 1
+        elif typ == "CLKDIV":
+            if attrs['NEXTPNR_BEL'][-1] in ["0","2"]:
+                print(attrs['NEXTPNR_BEL'], ["0","2"])
+            elif attrs['NEXTPNR_BEL'][-1] in ["1","3"]:
+                print(attrs['NEXTPNR_BEL'])
+            else:
+                print("gobe")
+            
+            attrs = set_clkdiv_attrs(db, parms, attrs['NEXTPNR_BEL'][-1])
+            print(attrs)
+            clkdivbits = get_shortval_fuses(db, tiledata.ttyp, attrs, 'HCLK')
+            print(clkdivbits)
+            print(cell, cellname)
+            for r, c in clkdivbits:
+                tile[r][c] = 1
+            
+            # clkdiv_attrs = 
         elif typ in _bsram_cell_types or typ == 'BSRAM_AUX':
             store_bsram_init_val(db, row - 1, col -1, typ, parms, attrs)
             if typ == 'BSRAM_AUX':
@@ -1082,6 +1137,8 @@ def place(db, tilemap, bels, cst, args):
                 if iob.attrs.get('SINGLERESISTOR', 'OFF') != 'OFF':
                     iob.attrs['DDR_DYNTERM'] = 'ON'
             if iob.flags['mode'] in {'OBUF', 'IOBUF', 'TLVDS_IOBUF', 'ELVDS_IOBUF'}:
+                print(iob.flags['mode'])
+
                 if not vccio:
                     iostd = iob.attrs['IO_TYPE']
                     vccio = _vcc_ios[iostd]
@@ -1105,7 +1162,9 @@ def place(db, tilemap, bels, cst, args):
             mode_for_attrs = iob.flags['mode']
             lvds_attrs = {}
             if mode_for_attrs.startswith('TLVDS_') or mode_for_attrs.startswith('ELVDS_'):
+                print(mode_for_attrs)
                 mode_for_attrs = mode_for_attrs[6:]
+                print(mode_for_attrs)
                 lvds_attrs = {'HYSTERESIS': 'NA', 'PULLMODE': 'NONE', 'OPENDRAIN': 'OFF'}
 
             in_iob_attrs = _init_io_attrs[mode_for_attrs].copy()
@@ -1167,11 +1226,12 @@ def place(db, tilemap, bels, cst, args):
                 in_iob_b_attrs = in_iob_attrs.copy()
 
             for iob_idx, atr in [(idx, in_iob_attrs), ('B', in_iob_b_attrs)]:
+                # print(idx, atr)
                 #print(name, iob.pos, atr)
                 iob_attrs = set()
                 for k, val in atr.items():
                     if k not in attrids.iob_attrids:
-                        print(f'XXX IO: add {k} key handle')
+                        print(f'XXX IO: add {k, val} key handle')
                     elif k == 'OPENDRAIN' and val == 'OFF' and 'LVDS' not in iob.flags['mode'] and 'IBUF' not in iob.flags['mode']:
                         continue
                     else:
@@ -1389,6 +1449,25 @@ def main():
     with importlib.resources.path('apycula', f'{device}.pickle') as path:
         with closing(gzip.open(path, 'rb')) as f:
             db = pickle.load(f)
+    
+    # new_nodes = copy.deepcopy(db.nodes)
+    # for key in db.nodes.keys():
+    #     if 'HCLK_OUT' in key and 'BD' not in key:
+    #         # print(key.replace("HCLK_OUT", "ECLK"), cb.nodes[key], "\n"*2)
+    #         new_key = key.replace("HCLK_OUT", "ECLK") 
+    #         node_name, wires = db.nodes[key]
+    #         new_wires = {(x, y, g.replace("HCLK_OUT", "ECLK")) for (x, y, g)  in wires}
+    #         new_nodes[new_key] = (node_name, new_wires)
+    #         _ = new_nodes.pop(key)
+    # db.nodes = new_nodes
+
+    # new_HCLK_pips = copy.deepcopy(db.HCLK_pips) 
+    # for key, val in db.HCLK_pips.items():
+    #     new_conns = {k: {(g.replace("HCLK_OUT", "ECLK") if "HCLK_OUT" in g else g):h for g,h in v.items()} for k, v in val.items() }
+    #     new_HCLK_pips[key] = new_conns
+
+    # db.HCLK_pips = new_HCLK_pips
+
 
     const_nets = {'GND': '$PACKER_GND_NET', 'VCC': '$PACKER_GND_NET'}
     if is_himbaechel:
