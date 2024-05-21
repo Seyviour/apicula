@@ -449,6 +449,7 @@ _known_logic_tables = {
             14: 'DSP',
             15: 'PLL',
             39: 'BSRAM_INIT',
+            49: 'HCLK',
             59: 'CFG',
             62: 'OSC',
             63: 'USB',
@@ -480,6 +481,7 @@ _known_tables = {
             45: 'IOBH',
             46: 'IOBI',
             47: 'IOBJ',
+            50: 'HCLK',
             51: 'OSC',
             53: 'DLLDEL0',
             54: 'DLLDEL1',
@@ -747,13 +749,14 @@ def fse_create_hclk_aliases(db, device, dat: Datfile):
 # or table 48 of the HCLK responsible for this half (we already know which of
 # the previous chags)
 
+
 _hclk_to_fclk = {
     'GW1N-1': {
         'B': {
              'hclk': {(10, 0), (10, 19)},
              'edges': {
-                 ( 1, 10) : {'CLK2', 'HCLK_OUT2'},
-                 (10, 19) : {'CLK2', 'HCLK_OUT3'},
+                 ( 1, 10) : {'CLK2', 'HCLK_FCLK2'},
+                 (10, 19) : {'CLK2', 'HCLK_FCLK3'},
                  },
              },
         'T': {
@@ -776,15 +779,15 @@ _hclk_to_fclk = {
         'T': {
              'hclk': {(0, 5)},
              'edges': {
-                 ( 1, 10) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (10, 19) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 10) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (10, 19) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'R': {
              'hclk': {(5, 19)},
              'edges': {
-                 ( 1,  5) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 ( 6, 10) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1,  5) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 ( 6, 10) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         },
@@ -792,29 +795,29 @@ _hclk_to_fclk = {
         'B': {
              'hclk': {(14, 0), (14, 19)},
              'edges': {
-                 ( 1, 10) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (10, 19) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 10) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (10, 19) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'T': {
              'hclk': {(0, 0), (0, 19)},
              'edges': {
-                 ( 1, 10) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (10, 19) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 10) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (10, 19) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'L': {
              'hclk': {(5, 0)},
              'edges': {
-                 ( 1, 5) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 ( 6, 14) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 5) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 ( 6, 14) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'R': {
              'hclk': {(5, 19)},
              'edges': {
-                 ( 1, 5) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (6, 14) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 5) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (6, 14) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         },
@@ -822,8 +825,8 @@ _hclk_to_fclk = {
         'B': {
              'hclk': {(19, 0), (19, 37)},
              'edges': {
-                 ( 1, 19) : {'CLK2', 'HCLK_OUT2'},
-                 (19, 37) : {'CLK2', 'HCLK_OUT3'},
+                 ( 1, 19) : {'CLK2', 'HCLK_FCLK2'},
+                 (19, 37) : {'CLK2', 'HCLK_FCLK3'},
                  },
              },
         'T': {
@@ -834,15 +837,15 @@ _hclk_to_fclk = {
         'L': {
              'hclk': {(9, 0)},
              'edges': {
-                 ( 1, 9) : {'CLK2', 'HCLK_OUT2'},
-                 (10, 19) : {'CLK2', 'HCLK_OUT3'},
+                 ( 1, 9) : {'CLK2', 'HCLK_FCLK2'},
+                 (10, 19) : {'CLK2', 'HCLK_FCLK3'},
                  },
              },
         'R': {
              'hclk': {(9, 37)},
              'edges': {
-                 ( 1, 9) : {'CLK2', 'HCLK_OUT2'},
-                 (10, 19) : {'CLK2', 'HCLK_OUT3'},
+                 ( 1, 9) : {'CLK2', 'HCLK_FCLK2'},
+                 (10, 19) : {'CLK2', 'HCLK_FCLK3'},
                  },
              },
         },
@@ -850,22 +853,22 @@ _hclk_to_fclk = {
         'B': {
              'hclk': {(19, 16), (19, 17), (19, 20)},
              'edges': {
-                 ( 1, 16) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (21, 37) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 16) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (21, 37) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'T': {
              'hclk': {(0, 18)},
              'edges': {
-                 ( 1, 10) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (10, 37) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 10) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (10, 37) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'R': {
              'hclk': {(9, 37)},
              'edges': {
-                 ( 1, 9) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (9, 19) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 9) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (9, 19) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         },
@@ -873,29 +876,29 @@ _hclk_to_fclk = {
         'B': {
              'hclk': {(28, 0), (28, 46)},
              'edges': {
-                 ( 1, 28) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (28, 46) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 28) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (28, 46) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'T': {
              'hclk': {(0, 0), (0, 46)},
              'edges': {
-                 ( 1, 28) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (28, 46) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 28) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (28, 46) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'L': {
              'hclk': {(18, 0)},
              'edges': {
-                 ( 1, 19) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (19, 28) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 19) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (19, 28) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'R': {
              'hclk': {(18, 46)},
              'edges': {
-                 ( 1, 19) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (19, 28) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 19) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (19, 28) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         },
@@ -903,25 +906,25 @@ _hclk_to_fclk = {
         'B': {
              'hclk': {(28, 0), (28, 46)},
              'edges': {
-                 ( 1, 46) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 46) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'T': {
              'hclk': {(0, 0), (0, 46)},
              'edges': {
-                 ( 1, 46) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 46) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'L': {
              'hclk': {(18, 0)},
              'edges': {
-                 ( 1, 28) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 28) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'R': {
              'hclk': {(18, 46)},
              'edges': {
-                 ( 1, 28) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 28) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         },
@@ -929,29 +932,29 @@ _hclk_to_fclk = {
         'B': {
              'hclk': {(54, 27), (54, 28)},
              'edges': {
-                 ( 1, 27) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (29, 55) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 27) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (29, 55) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'T': {
              'hclk': {(0, 27), (0, 28)},
              'edges': {
-                 ( 1, 27) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (29, 55) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 27) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (29, 55) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'L': {
              'hclk': {(27, 0)},
              'edges': {
-                 ( 1, 27) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (28, 55) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 27) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (28, 55) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'R': {
              'hclk': {(27, 55)},
              'edges': {
-                 ( 1, 27) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (28, 55) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 27) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (28, 55) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         },
@@ -959,29 +962,29 @@ _hclk_to_fclk = {
         'B': {
              'hclk': {(54, 27), (54, 28)},
              'edges': {
-                 ( 1, 27) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (29, 55) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 27) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (29, 55) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'T': {
              'hclk': {(0, 27), (0, 28)},
              'edges': {
-                 ( 1, 27) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (29, 55) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 27) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (29, 55) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'L': {
              'hclk': {(27, 0)},
              'edges': {
-                 ( 1, 27) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (28, 55) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 27) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (28, 55) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         'R': {
              'hclk': {(27, 55)},
              'edges': {
-                 ( 1, 27) : {'HCLK_OUT0', 'HCLK_OUT2'},
-                 (28, 55) : {'HCLK_OUT1', 'HCLK_OUT3'},
+                 ( 1, 27) : {'HCLK_FCLK0', 'HCLK_FCLK2'},
+                 (28, 55) : {'HCLK_FCLK1', 'HCLK_FCLK3'},
                  },
              },
         },
@@ -1025,7 +1028,7 @@ def fse_create_hclk_nodes(dev, device, fse, dat: Datfile):
                     dev.nodes.setdefault(f'X{col}Y{row}/HCLK9-{i}', ('HCLK', {(row, col, f'HCLK_IN{i}')}))[1].add((row, col, f'HCLK_9IN{i}'))
 
             for i in range(4):
-                hnam = f'HCLK_OUT{i}'
+                hnam = f'HCLK_FCLK{i}'
                 wires = dev.nodes.setdefault(f'{side}{hnam}', ("HCLK", set()))[1]
                 hclks[hnam] = wires
                 for hclk_loc in hclk_info[side]['hclk']:
