@@ -71,12 +71,12 @@ clknames.update({
 
 clknames.update({n: f"UNK{n}" for n in range(105, 121)})
 
-# These are CLKDIV output pins
+# These are CLKDIV output nodes
 clknames.update({
     106: 'THCLK0_CLKDIV_CLKOUT', 108:'THCLK1_CLKDIV_CLKOUT',
     118: 'RHCLK0_CLKDIV_CLKOUT', 120:'RHCLK1_CLKDIV_CLKOUT',
     110: 'BHCLK0_CLKDIV_CLKOUT', 112:'BHCLK1_CLKDIV_CLKOUT',
-    116: 'LHCLK0_CLKDIV_CLKOUT', 114:'LHCLK1_CLKDIV_CLKOUT',
+    114: 'LHCLK0_CLKDIV_CLKOUT', 116:'LHCLK1_CLKDIV_CLKOUT',
 })
 
 # These are the external clock pins, one on each side
@@ -128,7 +128,7 @@ hclknames.update({
 
 # outputs
 hclknames.update({
-    10: 'HCLK_OUT0', 11: 'HCLK_OUT1', 12: 'HCLK_OUT2', 13: 'HCLK_OUT3'
+     10: 'HCLK_OUT0', 11: 'HCLK_OUT1', 12: 'HCLK_OUT2', 13: 'HCLK_OUT3'
 })
 # these work as inputs in GW1N-9c
 hclknames.update({
