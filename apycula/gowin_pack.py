@@ -2345,8 +2345,8 @@ def place(db, tilemap, bels, cst, args):
                 if not iob.is_diff_p:
                     raise ValueError(f"Cannot place {cellname} at {bel_name} - not a P pin")
                 mode = parms['DIFF_TYPE']
-                if iob.is_true_lvds and mode[0] != 'T':
-                    raise ValueError(f"Cannot place {cellname} at {bel_name} - it is a true lvds pin")
+                # if iob.is_true_lvds and mode[0] != 'T':
+                #     raise ValueError(f"Cannot place {cellname} at {bel_name} - it is a true lvds pin")
                 if not iob.is_true_lvds and mode[0] == 'T':
                     raise ValueError(f"Cannot place {cellname} at {bel_name} - it is an emulated lvds pin")
             else:
