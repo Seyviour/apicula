@@ -74,6 +74,8 @@ class Device:
     packages: Dict[str, Tuple[str, str, str]] = field(default_factory=dict)
     # {variant: {package: {pin#: (pin_name, [cfgs])}}}
     pinout: Dict[str, Dict[str, Dict[str, Tuple[str, List[str]]]]] = field(default_factory=dict)
+    # {variant: {package: (net, row, col, AB, iostd)}}
+    sip_cst: Dict[str, Dict[str, Tuple[str, int, int, str, str]]] = field(default_factory=dict)
     pin_bank: Dict[str, int] = field(default_factory = dict)
     cmd_hdr: List[ByteString] = field(default_factory=list)
     cmd_ftr: List[ByteString] = field(default_factory=list)
@@ -1192,13 +1194,24 @@ def fse_create_hclk_nodes(dev, device, fse, dat: Datfile):
             for hclk_loc in hclk_info[side]['hclk']:
                 row, col = hclk_loc
                 ttyp = fse['header']['grid'][61][row][col]
+<<<<<<< HEAD
                 dev.hclk_pips[(row, col)] = fse_pips(fse, ttyp, device, table = 48, wn = hclknames)
+=======
+                dev.hclk_pips[(row, col)] = fse_pips(fse, ttyp, table = 48, wn = hclknames)
+                for dst in dev.hclk_pips[(row, col)].keys():
+                    # from HCLK to interbank MUX
+                    if dst in {'HCLK_BANK_OUT0', 'HCLK_BANK_OUT1'}:
+                        add_node(dev, f'HCLK{"TBLR".index(side)}_BANK_OUT{dst[-1]}', "GLOBAL_CLK", row, col, dst)
+>>>>>>> master
                 # connect local wires like PCLKT0 etc to the global nodes
                 for srcs in dev.hclk_pips[(row, col)].values():
                     for src in srcs.keys():
                         for pfx in _global_wire_prefixes:
                             if src.startswith(pfx):
                                 add_node(dev, src, "HCLK", row, col, src)
+                        # from interbank MUX to HCLK
+                        if src in {'HCLK_BANK_IN0', 'HCLK_BANK_IN1'}:
+                            add_node(dev, f'HCLKMUX{src[-1]}', "GLOBAL_CLK", row, col, src)
                 # strange GW1N-9C input-input aliases
                 for i in {0, 2}:
                     dev.nodes.setdefault(f'X{col}Y{row}/HCLK9-{i}', ('HCLK', {(row, col, f'HCLK_IN{i}')}))[1].add((row, col, f'HCLK_9IN{i}'))
@@ -1242,6 +1255,80 @@ def fse_create_hclk_nodes(dev, device, fse, dat: Datfile):
                             pips.setdefault(f'FCLK{dst}', {}).update({src: set()})
                             if src.startswith('HCLK'):
                                 hclks[src].add((row, col, src))
+
+# DHCEN (as I imagine) is an additional control input of the HCLK input
+# multiplexer. We have four input multiplexers - HCLK_IN0, HCLK_IN1, HCLK_IN2,
+# HCLK_IN3 (GW1N-9C with its additional four multiplexers stands separately,
+# but we will deal with it later) and two interbank inputs.
+# Creating images using IDE where we use the maximum allowable number of DHCEN,
+# the CE port of which is connected to the IO ports, then we trace the route
+# from IO to the final wire, which will be the CE port of the DHCEN primitive.
+# We are not interested in the CLKIN and CLKOUT ports because we are supposed
+# to simply disable/enable one of the input multiplexers.
+# Let's summarize the experimental data in a table.
+# There are 4 multiplexers and interbank inputs on each side of the chip
+# (sides: Right Bottom Left Top).
+_dhcen_ce = {
+        'GW1N-1':
+        {'B' : [(10, 19, 'D5'), (10, 19, 'D3'), (10, 19, 'D4'), (10, 19, 'D2'), (10,  0, 'C0'), (10,  0, 'C1')]},
+        'GW1NZ-1':
+        {'R' : [( 0, 19, 'A2'), ( 0, 19, 'A4'), ( 0, 19, 'A3'), ( 0, 19, 'A5'), ( 0, 18, 'C6'), ( 0, 18, 'C7')],
+         'T' : [(10, 19, 'A2'), (10, 19, 'A4'), (10, 19, 'A3'), (10, 19, 'A5'), (10, 19, 'C6'), (10, 19, 'C7')]},
+        'GW1NS-2':
+        {'R' : [(10, 19, 'A4'), (10, 19, 'A6'), (10, 19, 'A5'), (10, 19, 'A7'), (10, 19, 'C4'), (10, 19, 'C5')],
+         'B' : [(11, 19, 'A4'), (11, 19, 'A6'), (11, 19, 'A5'), (11, 19, 'A7'), (11, 19, 'C4'), (11, 19, 'C5')],
+         'L' : [( 9,  0, 'A0'), ( 9,  0, 'A2'), ( 9,  0, 'A1'), ( 9,  0, 'A3'), ( 9,  0, 'C0'), ( 9,  0, 'C1')],
+         'T' : [( 0, 19, 'D5'), ( 0, 19, 'D3'), ( 0, 19, 'D4'), ( 0, 19, 'D2'), ( 0,  0, 'B1'), ( 0,  0, 'B0')]},
+        'GW1N-4':
+        {'R' : [(18, 37, 'C6'), (18, 37, 'D7'), (18, 37, 'C7'), (18, 37, 'D6'), ( 0, 37, 'D7'), ( 0, 37, 'D6')],
+         'B' : [(19, 37, 'A2'), (19, 37, 'A4'), (19, 37, 'A3'), (19, 37, 'A5'), (19,  0, 'B2'), (19,  0, 'B3')],
+         'L' : [(18,  0, 'C6'), (18,  0, 'D7'), (18,  0, 'C7'), (18,  0, 'D6'), (19,  0, 'A4'), ( 0,  0, 'B1')]},
+        'GW1NS-4':
+        {'R' : [(18, 37, 'C6'), (18, 37, 'D7'), (18, 37, 'C7'), (18, 37, 'D6'), ( 0, 37, 'D7'), ( 0, 37, 'D6')],
+         'B' : [(19, 37, 'A2'), (19, 37, 'A4'), (19, 37, 'A3'), (19, 37, 'A5'), (19,  0, 'B2'), (19,  0, 'B3')],
+         'T' : [( 1,  0, 'B6'), ( 1,  0, 'A0'), ( 1,  0, 'B7'), ( 1,  0, 'A1'), ( 1,  0, 'C4'), ( 1,  0, 'C3')]},
+        'GW1N-9':
+        {'R' : [(18, 46, 'C6'), (18, 46, 'D7'), (18, 46, 'C7'), (18, 46, 'D6'), (18, 46, 'B6'), (18, 46, 'B7')],
+         'B' : [(28, 46, 'A2'), (28, 46, 'A4'), (28, 46, 'A3'), (28, 46, 'A5'), (28,  0, 'B2'), (28,  0, 'B3')],
+         'L' : [(18,  0, 'C6'), (18,  0, 'D7'), (18,  0, 'C7'), (18,  0, 'D6'), (18,  0, 'B6'), (18,  0, 'B7')],
+         'T' : [( 9,  0, 'C6'), ( 9,  0, 'D7'), ( 9,  0, 'C7'), ( 9,  0, 'D6'), ( 9,  0, 'B6'), ( 9,  0, 'B7')]},
+        'GW1N-9C':
+        {'R' : [(18, 46, 'C6'), (18, 46, 'D7'), (18, 46, 'C7'), (18, 46, 'D6'), (18, 46, 'B6'), (18, 46, 'B7')],
+         'B' : [(28, 46, 'A2'), (28, 46, 'A4'), (28, 46, 'A3'), (28, 46, 'A5'), (28,  0, 'B2'), (28,  0, 'B3')],
+         'L' : [(18,  0, 'C6'), (18,  0, 'D7'), (18,  0, 'C7'), (18,  0, 'D6'), (18,  0, 'B6'), (18,  0, 'B7')],
+         'T' : [( 9,  0, 'C6'), ( 9,  0, 'D7'), ( 9,  0, 'C7'), ( 9,  0, 'D6'), ( 9,  0, 'B6'), ( 9,  0, 'B7')]},
+        'GW2A-18':
+        {'R' : [(27, 55, 'A2'), (27, 55, 'A3'), (27, 55, 'D2'), (27, 55, 'D3'), (27, 55, 'D0'), (27, 55, 'D1')],
+         'B' : [(54, 27, 'A2'), (54, 27, 'A3'), (54, 27, 'D2'), (54, 27, 'D3'), (54, 27, 'D0'), (54, 27, 'D1')],
+         'L' : [(27,  0, 'A2'), (27,  0, 'A3'), (27,  0, 'D2'), (27,  0, 'D3'), (27,  0, 'D0'), (27,  0, 'D1')],
+         'T' : [( 0, 27, 'A2'), ( 0, 27, 'A3'), ( 0, 27, 'D2'), ( 0, 27, 'D3'), (  0,27, 'D0'), ( 0, 27, 'D1')]},
+        'GW2A-18C':
+        {'R' : [(27, 55, 'A2'), (27, 55, 'A3'), (27, 55, 'D2'), (27, 55, 'D3'), (27, 55, 'D0'), (27, 55, 'D1')],
+         'B' : [(54, 27, 'A2'), (54, 27, 'A3'), (54, 27, 'D2'), (54, 27, 'D3'), (54, 27, 'D0'), (54, 27, 'D1')],
+         'L' : [(27,  0, 'A2'), (27,  0, 'A3'), (27,  0, 'D2'), (27,  0, 'D3'), (27,  0, 'D0'), (27,  0, 'D1')],
+         'T' : [( 0, 27, 'A2'), ( 0, 27, 'A3'), ( 0, 27, 'D2'), ( 0, 27, 'D3'), (  0,27, 'D0'), ( 0, 27, 'D1')]},
+        }
+def fse_create_dhcen(dev, device, fse, dat: Datfile):
+    if device not in _dhcen_ce:
+        print(f'No DHCEN for {device} for now.')
+        return
+    for side, ces in _dhcen_ce[device].items():
+        for idx, ce_wire in enumerate(ces):
+            row, col, wire = ce_wire
+            extra = dev.extra_func.setdefault((row, col), {})
+            dhcen = extra.setdefault('dhcen', [])
+            # use db.hclk_pips in order to find HCLK_IN cells
+            for hclk_loc in _hclk_to_fclk[device][side]['hclk']:
+                if idx < 4:
+                    hclk_name = f'HCLK_IN{idx}'
+                else:
+                    hclk_name = f'HCLK_BANK_OUT{idx - 4}'
+                if hclk_name in dev.hclk_pips[hclk_loc]:
+                    hclkin = {'pip' : [f'X{hclk_loc[1]}Y{hclk_loc[0]}', hclk_name, next(iter(dev.hclk_pips[hclk_loc][hclk_name].keys())), side]}
+
+            hclkin.update({ 'ce' : wire})
+            dhcen.append(hclkin)
+
 
 _pll_loc = {
  'GW1N-1':
@@ -1496,6 +1583,7 @@ def fse_create_clocks(dev, device, dat: Datfile, fse):
 
 
     spines = {f'SPINE{i}' for i in range(32)}
+    hclk_srcs = {f'HCLK{i}_BANK_OUT{j}' for i in range(4) for j in range(2)}
     dcs_inputs = {f'P{i}{j}{k}' for i in range(1, 5) for j in range(6, 8) for k in "ABCD"}
     for row, rd in enumerate(dev.grid):
         for col, rc in enumerate(rd):
@@ -1507,6 +1595,12 @@ def fse_create_clocks(dev, device, dat: Datfile, fse):
                     add_node(dev, dest, "GLOBAL_CLK", row, col, dest)
                     for src in { wire for wire in srcs.keys() if wire not in {'VCC', 'VSS'}}:
                         add_node(dev, src, "GLOBAL_CLK", row, col, src)
+                elif dest in {'HCLKMUX0', 'HCLKMUX1'}:
+                    # this interbank communication between HCLKs
+                    add_node(dev, dest, "GLOBAL_CLK", row, col, dest)
+                    for src in {wire for wire in srcs.keys() if wire in hclk_srcs}:
+                        add_node(dev, src, "GLOBAL_CLK", row, col, src)
+
     # GBx0 <- GBOx
     for spine_pair in range(4): # GB00/GB40, GB10/GB50, GB20/GB60, GB30/GB70
         tap_start = _clock_data[device]['tap_start'][0]
@@ -1841,6 +1935,316 @@ def fse_create_bandgap(dev, device):
         dev.extra_func.setdefault((10, 18), {}).update(
             {'bandgap': {'wire': 'C1'}})
 
+def fse_create_userflash(dev, device, dat):
+    # dat[‘UfbIns’] and dat[‘UfbOuts’].
+    # The outputs are exactly 32 by the number of bits and they are always
+    # present, their positions correspond to bit indices - checked by
+    # selectively connecting the outputs to LEDs.
+    # The inputs depend on the Flash type - different types have different
+    # inputs, e.g. XY or RCP addressing is used etc. During experimental
+    # generation of images with input to button connection some inputs
+    # description could not be found in the table, such inputs will be
+    # specified here rigidly.
+    # Flash types (see UG295-1.4.3E_Gowin User Flash User Guide.pdf)
+    _flash_type = {'GW1N-1':  'FLASH96K',
+                   'GW1NZ-1': 'FLASH64KZ',
+                   'GW1N-4':  'FLASH256K', 'GW1NS-4': 'FLASH256K',
+                   'GW1N-9':  'FLASH608K', 'GW1N-9C': 'FLASH608K'}
+    if device not in _flash_type:
+        return
+    flash_type = _flash_type[device]
+    ins_type = 'XY'
+    if flash_type == 'FLASH96K':
+        ins_type = 'RC'
+
+    # userflash has neither its own cell type nor fuses, so it is logical to make it extra func.
+    # use X0Y0 cell for convenience - a significant part of UserFlash pins are
+    # located there, it saves from creating unnecessary nodes
+    row, col = (0, 0)
+    dev.extra_func.setdefault((row, col), {}).update(
+        {'userflash': {'type': flash_type}})
+    extra_func = dev.extra_func[(row, col)]['userflash']
+
+
+    def make_port(r, c, wire, port, wire_type, pins):
+        if r == -1 or c == -1:
+            return
+        bel = Bel()
+        wire = wirenames[wire]
+        bel.portmap[port] = wire
+        if r - 1 != row or c - 1 != col :
+            create_port_wire(dev, row, col, r - row - 1, c - col - 1, bel, 'USERFLASH', port, wire, wire_type)
+        pins[port] = bel.portmap[port]
+
+    # outputs
+    outs = extra_func.setdefault('outs', {})
+    for i, desc in enumerate(dat.compat_dict['UfbOuts']):
+        port = f'DOUT{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'FLASH_OUT', outs)
+
+    # inputs
+    ins = extra_func.setdefault('ins', {})
+    # DIN first - we know there they are
+    for i, desc in enumerate(dat.compat_dict['UfbIns'][58:]):
+        port = f'DIN{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'FLASH_IN', ins)
+
+    if ins_type == 'RC':
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][21:27]):
+            port = f'RA{i}'
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][27:33]):
+            port = f'CA{i}'
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][33:39]):
+            port = f'PA{i}'
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][39:43]):
+            port = f'MODE{i}'
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][43:45]):
+            port = f'SEQ{i}'
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][45:50]):
+            port = ['ACLK', 'PW', 'RESET', 'PE', 'OE'][i]
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][50:52]):
+            port = f'RMODE{i}'
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][52:54]):
+            port = f'WMODE{i}'
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][54:56]):
+            port = f'RBYTESEL{i}'
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][56:58]):
+            port = f'WBYTESEL{i}'
+            r, c, wire = desc
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+    else:
+        # GW1NS-4 has a direct connection of Flash with the built-in Cortex-M3
+        # and some wires during test compilations showed connections different
+        # from the table in the DAT file
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][:6]):
+            port = ['XE', 'YE', 'SE', 'PROG', 'ERASE', 'NVSTR'][i]
+            r, c, wire = desc
+            if device == 'GW1NS-4' and port in {'XE', 'YE', 'SE'}:
+                r, c, wire = {'XE':(15, 1, 28), 'YE': (15, 1, 0), 'SE':(14, 1, 31)}[port]
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][6:15]):
+            port = f'XADR{i}'
+            r, c, wire = desc
+            if device == 'GW1NS-4' and i < 7:
+                r, c, wire = (14, 1, 3 + 4 * i)
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+        for i, desc in enumerate(dat.compat_dict['UfbIns'][15:21]):
+            port = f'YADR{i}'
+            r, c, wire = desc
+            if device == 'GW1NS-4' and i < 6:
+                r, c, wire = (15, 1, 4 + 4 * i)
+            make_port(r, c, wire, port, 'FLASH_IN', ins)
+
+    # XXX INUSEN - is observed to be connected to the VSS when USERFLASH is used
+    if flash_type != 'FLASH64KZ':
+        ins['INUSEN'] = 'C0'
+
+def fse_create_emcu(dev, device, dat):
+    # Mentions of the NS-2 series are excluded from the latest Gowin
+    # documentation so that only one chip remains with the ARM processor
+    if device != 'GW1NS-4':
+        return
+
+    # The primitive pins are described in tables dat["EMcuIns"] and dat["EMcuOuts"]
+    # Since there is only one chip, there is no need to check for [-1, -1, -1]
+    # in the table and try to create obviously missing wires.
+    def make_port(r, c, wire, port, wire_type, pins):
+        bel = Bel()
+        wire = wirenames[wire]
+        bel.portmap[port] = wire
+        if r - 1 != row or c - 1 != col :
+            create_port_wire(dev, row, col, r - row - 1, c - col - 1, bel, 'EMCU', port, wire, wire_type)
+        pins[port] = bel.portmap[port]
+
+    # In (0, 0) is the CPU enabled/disabled flag, so place the CPU there
+    row, col = (0, 0)
+    dev.extra_func.setdefault((row, col), {}).update({'emcu': {}})
+    extra_func = dev.extra_func[(row, col)]['emcu']
+
+    # outputs
+    outs = extra_func.setdefault('outs', {})
+    single_wires = [('MTXHRESETN', 87), ('UART0TXDO', 32), ('UART1TXDO', 33),
+                    ('UART0BAUDTICK', 34), ('UART1BAUDTICK', 35), ('INTMONITOR', 36),
+                    ('SRAM0WREN0', 50), ('SRAM0WREN1', 51), ('SRAM0WREN2', 52), ('SRAM0WREN3', 53),
+                    ('SRAM0CS', 86), ('TARGFLASH0HSEL', 88), ('TARGFLASH0HTRANS0', 118), ('TARGFLASH0HTRANS1', 119),
+                    ('TARGEXP0HSEL', 127), ('TARGEXP0HTRANS0', 160), ('TARGEXP0HTRANS1', 161),
+                    ('TARGEXP0HWRITE', 162),
+                    ('TARGEXP0HSIZE0', 163), ('TARGEXP0HSIZE1', 164), ('TARGEXP0HSIZE2', 165),
+                    ('TARGEXP0HBURST0', 166), ('TARGEXP0HBURST1', 167), ('TARGEXP0HBURST2', 168),
+                    ('TARGEXP0HPROT0', 169), ('TARGEXP0HPROT1', 170),
+                    ('TARGEXP0HPROT2', 171), ('TARGEXP0HPROT3', 172),
+                    ('TARGEXP0MEMATTR0', 173), ('TARGEXP0MEMATTR1', 174),
+                    ('TARGEXP0EXREQ', 175),
+                    ('TARGEXP0HMASTER0', 176), ('TARGEXP0HMASTER1', 177),
+                    ('TARGEXP0HMASTER2', 178), ('TARGEXP0HMASTER3', 179),
+                    ('TARGEXP0HMASTLOCK', 212), ('TARGEXP0HREADYMUX', 213),
+                    ('INITEXP0HREADY', 251), ('INITEXP0HRESP', 252), ('INITEXP0EXRESP', 253),
+                    ('APBTARGEXP2PSEL', 257), ('APBTARGEXP2PENABLE', 258), ('APBTARGEXP2PWRITE', 271),
+                    ('APBTARGEXP2PSTRB0', 304), ('APBTARGEXP2PSTRB1', 305),
+                    ('APBTARGEXP2PSTRB2', 306), ('APBTARGEXP2PSTRB3', 307),
+                    ('APBTARGEXP2PPROT0', 308), ('APBTARGEXP2PPROT1', 309), ('APBTARGEXP2PPROT2', 310),
+                    ('DAPJTAGNSW', 313),
+                    ('TPIUTRACEDATA0', 314), ('TPIUTRACEDATA1', 315),
+                    ('TPIUTRACEDATA2', 316), ('TPIUTRACEDATA3', 317),
+                    ]
+    for port, idx in single_wires:
+        r, c, wire = dat.compat_dict['EMcuOuts'][idx]
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # gpio out - 16 output wires
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][0:16]):
+        port = f'IOEXPOUTPUTO{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # gpio outputenable - 16 output wires
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][16:32]):
+        port = f'IOEXPOUTPUTENO{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # ram addr- 13 output wires
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][37:50]):
+        port = f'SRAM0ADDR{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # ram data- 32 output wires
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][54:86]):
+        port = f'SRAM0WDATA{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # flash addr- 29 output wires
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][89:118]):
+        port = f'TARGFLASH0HADDR{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # 32 output wires, unknown purpose
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][128:160]):
+        port = f'TARGEXP0HADDR{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # 32 output wires, unknown purpose
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][180:212]):
+        port = f'TARGEXP0HWDATA{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # 32 output wires, unknown purpose
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][219:251]):
+        port = f'INITEXP0HRDATA{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # 12 output wires, unknown purpose
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][259:271]):
+        port = f'APBTARGEXP2PADDR{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # 32 output wires, unknown purpose
+    for i, desc in enumerate(dat.compat_dict['EMcuOuts'][272:304]):
+        port = f'APBTARGEXP2PWDATA{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_OUT', outs)
+
+    # inputs
+    # funny thing - I have not been able to find ports PORESETN and SYSRESETN, they just
+    # don't connect to the button. There is a suspicion that implicit
+    # connection from GSR primitives is used, now it comes in handy.
+    ins = extra_func.setdefault('ins', {})
+    clock_wires = [('FCLK', 0), ('RTCSRCCLK', 3)]
+    for port, idx in clock_wires:
+        r, c, wire = dat.compat_dict['EMcuIns'][idx]
+        make_port(r, c, wire, port, 'TILE_CLK', ins)
+
+    single_wires = [('UART0RXDI', 20), ('UART1RXDI', 21),
+                    ('TARGFLASH0HRESP', 89), ('TARGFLASH0HREADYOUT', 91),
+                    ('TARGEXP0HRESP', 125), ('TARGEXP0HREADYOUT', 124), ('TARGEXP0EXRESP', 126),
+                    ('TARGEXP0HRUSER0', 127), ('TARGEXP0HRUSER1', 128), ('TARGEXP0HRUSER2', 129),
+                    ('INITEXP0HSEL', 130), ('INITEXP0HTRANS0', 163), ('INITEXP0HTRANS1', 164),
+                    ('INITEXP0HWRITE', 165), ('INITEXP0HSIZE0', 166), ('INITEXP0HSIZE1', 167), ('INITEXP0HSIZE2', 168),
+                    ('INITEXP0HBURST0', 169), ('INITEXP0HBURST1', 170), ('INITEXP0HBURST2', 171),
+                    ('INITEXP0HPROT0', 172), ('INITEXP0HPROT1', 173), ('INITEXP0HPROT2', 174), ('INITEXP0HPROT3', 175),
+                    ('INITEXP0MEMATTR0', 176), ('INITEXP0MEMATTR1', 177), ('INITEXP0EXREQ', 178),
+                    ('INITEXP0HMASTER0', 179), ('INITEXP0HMASTER1', 180),
+                    ('INITEXP0HMASTER2', 181), ('INITEXP0HMASTER3', 182),
+                    ('INITEXP0HMASTLOCK', 215), ('INITEXP0HAUSER', 216),
+                    ('INITEXP0HWUSER0', 217), ('INITEXP0HWUSER1', 218),
+                    ('INITEXP0HWUSER2', 219), ('INITEXP0HWUSER3', 220),
+                    ('APBTARGEXP2PREADY', 253), ('APBTARGEXP2PSLVERR', 254),
+                    ('FLASHERR', 263), ('FLASHINT', 264),
+                    ]
+    for port, idx in single_wires:
+        r, c, wire = dat.compat_dict['EMcuIns'][idx]
+        make_port(r, c, wire, port, 'EMCU_IN', ins)
+
+    # gpio inout - 16 input wires
+    for i, desc in enumerate(dat.compat_dict['EMcuIns'][4:20]):
+        port = f'IOEXPINPUTI{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_IN', ins)
+
+    # read from ram - 32 input wires
+    for i, desc in enumerate(dat.compat_dict['EMcuIns'][22:54]):
+        port = f'SRAM0RDATA{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_IN', ins)
+
+    # 32 input wires, unknown purpose
+    for i, desc in enumerate(dat.compat_dict['EMcuIns'][92:124]):
+        port = f'TARGEXP0HRDATA{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_IN', ins)
+
+    # 32 input wires, unknown purpose
+    for i, desc in enumerate(dat.compat_dict['EMcuIns'][131:163]):
+        port = f'INITEXP0HADDR{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_IN', ins)
+
+    # 32 input wires, unknown purpose
+    for i, desc in enumerate(dat.compat_dict['EMcuIns'][183:215]):
+        port = f'INITEXP0HWDATA{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_IN', ins)
+
+    # 32 input wires, unknown purpose
+    for i, desc in enumerate(dat.compat_dict['EMcuIns'][221:253]):
+        port = f'APBTARGEXP2PRDATA{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_IN', ins)
+
+    # 5 input wires connected to GND, may be GPINT
+    for i, desc in enumerate(dat.compat_dict['EMcuIns'][265:270]):
+        port = f'GPINT{i}'
+        r, c, wire = desc
+        make_port(r, c, wire, port, 'EMCU_IN', ins)
+
+
 def fse_bram(fse, aux = False):
     bels = {}
     name = 'BSRAM'
@@ -1938,6 +2342,8 @@ def from_fse(device, fse, dat: Datfile):
     bram_aux_ttypes = get_tile_types_by_func(dev, dat, fse, 'b')
     dsp_ttypes = get_tile_types_by_func(dev, dat, fse, 'D')
     dsp_aux_ttypes = get_tile_types_by_func(dev, dat, fse, 'd')
+    pll_ttypes = get_tile_types_by_func(dev, dat, fse, 'P')
+    pll_ttypes.update(get_tile_types_by_func(dev, dat, fse, 'p'))
     for ttyp in ttypes:
         w = fse[ttyp]['width']
         h = fse[ttyp]['height']
@@ -1961,11 +2367,7 @@ def from_fse(device, fse, dat: Datfile):
             tile.bels = fse_dsp(fse)
         elif ttyp in dsp_aux_ttypes:
             tile.bels = fse_dsp(fse, True)
-        # These are the cell types in which PLLs can be located. To determine,
-        # we first take the coordinates of the cells with the letters P and p
-        # from the dat['grid'] table, and then, using these coordinates,
-        # determine the type from fse['header']['grid'][61][row][col]
-        elif ttyp in [42, 45, 74, 75, 76, 77, 78, 79, 86, 87, 88, 89]:
+        elif ttyp in pll_ttypes:
             tile.bels = fse_pll(device, fse, ttyp)
         #else:
         #    print("unknown ttyp: ", ttyp)
@@ -1991,7 +2393,10 @@ def from_fse(device, fse, dat: Datfile):
     fse_create_osc(dev, device, fse)
     fse_create_gsr(dev, device)
     fse_create_bandgap(dev, device)
+    fse_create_userflash(dev, device, dat)
+    fse_create_emcu(dev, device, dat)
     fse_create_logic2clk(dev, device, dat)
+    fse_create_dhcen(dev, device, fse, dat)
     disable_plls(dev, device)
     sync_extra_func(dev)
     set_chip_flags(dev, device);
@@ -2259,6 +2664,9 @@ def dat_portmap(dat, dev, device):
                         elif nam == 'FCLK':
                             # dummy Input, we'll make a special pips for it
                             bel.portmap[nam] = "FCLK"
+                    # these inputs for IEM window selection
+                    bel.portmap['WINSIZE0'] = {'A':"C6", 'B':"C7"}[buf]
+                    bel.portmap['WINSIZE1'] = {'A':"D6", 'B':"D7"}[buf]
                     for idx, nam in _iologic_outputs:
                         w_idx = dat.portmap[f'Iologic{buf}Out'][idx]
                         if w_idx >= 0:
@@ -3407,6 +3815,8 @@ def fse_wire_delays(db):
         db.wire_delay[clknames[i]] = "CENT_SPINE_PCLK"
     for i in range(129, 153): # clock inputs (logic->clock)
         db.wire_delay[clknames[i]] = "CENT_SPINE_PCLK"
+    for i in range(1000, 1010): # HCLK
+        db.wire_delay[clknames[i]] = "X0" # XXX
 
 # assign pads with plls
 # for now use static table and store the bel name although it is always PLL without a number

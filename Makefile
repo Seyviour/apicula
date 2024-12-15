@@ -20,7 +20,10 @@ all: apycula/GW5A-25A.pickle apycula/GW2A-18C.pickle
 %_stage2.pickle: apycula/clock_fuzzer.py %_stage1.pickle
 	python3 -m apycula.clock_fuzzer $*
 
-apycula/%.pickle: %_stage2.pickle
+%_stage3.pickle: apycula/find_sdram_pins.py %_stage2.pickle
+	python3 -m apycula.find_sdram_pins $*
+
+apycula/%.pickle: %_stage3.pickle
 	gzip -c $< > $@
 
 clean:

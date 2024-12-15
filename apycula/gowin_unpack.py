@@ -314,7 +314,7 @@ def get_bsram_main_cell(db, row, col, typ):
 
 # The DSP has 9 cells: the main one and a group of auxiliary ones.
 def get_dsp_main_cell(db, row, col, typ):
-    if type[-6:-2] == '_AUX':
+    if typ[-6:-2] == '_AUX':
         col = 1 + (col - 1) // 9
     return row, col
 
@@ -399,6 +399,9 @@ def parse_tile_(db, row, col, tile, default=True, noalias=False, noiostd = True)
             attrvals = parse_attrvals(tile, db.logicinfo['IOLOGIC'], db.shortval[tiledata.ttyp][f'IOLOGIC{idx}'], attrids.iologic_attrids, "IOLOGIC")
             if not attrvals:
                 continue
+            # additional IOLOGIC components
+            # XXX delays and FFs in IO
+            # main component
             if 'OUTMODE' in attrvals.keys():
                 # XXX skip oddr
                 if attrvals['OUTMODE'] in {attrids.iologic_attrvals['MODDRX1'], attrids.iologic_attrvals['ODDRX1']}:
@@ -941,7 +944,7 @@ def tile2verilog(dbrow, dbcol, bels, pips, clock_pips, mod, cst, db):
             for paramval in flags:
                 param, _, val = paramval.partition('=')
                 pll.params[param] = val
-            portmap = db.grid[dbrow][dbcol].bels[bel[:-1]].portmap
+            portmap = db.grid[dbrow][dbcol].bels[bel[:5]].portmap
             for port, wname in portmap.items():
                 pll.portmap[port] = f"R{row}C{col}_{wname}"
         elif typ.startswith("PLLVR"):
@@ -1082,7 +1085,8 @@ def tile2verilog(dbrow, dbcol, bels, pips, clock_pips, mod, cst, db):
             mod.primitives[name] = iob
             # constraints
             pos = chipdb.loc2pin_name(db, dbrow, dbcol)
-            bank = chipdb.loc2bank(db, dbrow, dbcol)
+            # XXX tangnano4k uses IOT30 not found in the package
+            #bank = chipdb.loc2bank(db, dbrow, dbcol)
             cst.ports[name] = f"{pos}{idx}"
             if kind[0:5] == 'TLVDS':
                 cst.ports[name] = f"{pos}{idx},{pos}{chr(ord(idx) + 1)}"
