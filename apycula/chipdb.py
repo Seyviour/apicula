@@ -1194,15 +1194,11 @@ def fse_create_hclk_nodes(dev, device, fse, dat: Datfile):
             for hclk_loc in hclk_info[side]['hclk']:
                 row, col = hclk_loc
                 ttyp = fse['header']['grid'][61][row][col]
-<<<<<<< HEAD
                 dev.hclk_pips[(row, col)] = fse_pips(fse, ttyp, device, table = 48, wn = hclknames)
-=======
-                dev.hclk_pips[(row, col)] = fse_pips(fse, ttyp, table = 48, wn = hclknames)
                 for dst in dev.hclk_pips[(row, col)].keys():
                     # from HCLK to interbank MUX
                     if dst in {'HCLK_BANK_OUT0', 'HCLK_BANK_OUT1'}:
                         add_node(dev, f'HCLK{"TBLR".index(side)}_BANK_OUT{dst[-1]}', "GLOBAL_CLK", row, col, dst)
->>>>>>> master
                 # connect local wires like PCLKT0 etc to the global nodes
                 for srcs in dev.hclk_pips[(row, col)].values():
                     for src in srcs.keys():

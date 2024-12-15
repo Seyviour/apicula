@@ -135,15 +135,10 @@ set_device {device_desc}
 set_option {opt}
 run pnr
             """
-<<<<<<< HEAD
-        device_desc = self.partnumber
-        if self.device in ['GW1N-9', 'GW1N-4', 'GW1N-9C', 'GW2A-18', 'GW2A-18C', 'GW2AR-18C', 'GW5A-25A']:
-            device_desc = f'-name {self.device} {device_desc}'
-=======
 
         device_desc = f'-name {self.device} {self.partnumber}'
->>>>>>> master
-
+        if self.device in ['GW1N-9', 'GW1N-4', 'GW1N-9C', 'GW2A-18', 'GW2A-18C', 'GW2AR-18C', 'GW5A-25A']:
+            device_desc = f'-name {self.device} {device_desc}'
         f.write(template.format(
             cst=self.cst,
             netlist=self.netlist,
